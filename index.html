@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#07111f">
+<title>FRIDAY — Personal Assistant</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-orb"></span><div><strong>FRIDAY</strong><small>PERSONAL SYSTEM</small></div></div>
+    <nav>
+      <button class="nav active" data-view="assistant">◉ <span>Assistant Mode</span></button>
+      <button class="nav" data-view="control">▦ <span>Control Center</span></button>
+      <button class="nav" data-view="memory">◈ <span>Memoria</span></button>
+      <button class="nav" data-view="settings">⚙ <span>Impostazioni</span></button>
+    </nav>
+    <div class="side-status"><i></i> SISTEMA LOCALE ATTIVO</div>
+    <div class="side-note">FRIDAY 1.0<br><span>Interfaccia prototipo · gratuita</span></div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div><span class="eyebrow">PERSONAL AI INTERFACE</span><h1 id="pageTitle">Assistant Mode</h1></div>
+      <div class="top-right"><span class="status-pill"><i></i> ONLINE LOCALE</span><button class="icon-btn" id="clock">--:--</button></div>
+    </header>
+
+    <section class="view visible" id="assistant">
+      <div class="hero">
+        <div class="hero-copy">
+          <span class="eyebrow">GOOD TO SEE YOU</span>
+          <h2>Al tuo servizio<span>.</span></h2>
+          <p>Sono FRIDAY. Da dove vuoi iniziare?</p>
+          <div class="hero-actions">
+            <button class="primary" id="startChat">Inizia una conversazione <b>↗</b></button>
+            <button class="secondary" id="openChatGPT">Apri ChatGPT ↗</button>
+          </div>
+        </div>
+        <div class="reactor-wrap"><div class="reactor-ring ring-one"></div><div class="reactor-ring ring-two"></div><div class="reactor-core"><span>F</span></div><div class="reactor-caption">FRIDAY CORE <small>STANDBY</small></div></div>
+      </div>
+      <div class="chat-panel" id="chatPanel">
+        <div class="panel-heading"><div><span class="eyebrow">INTERFACCIA VOCALE</span><h3>Conversazione</h3></div><span class="tiny-status">● PRONTA</span></div>
+        <div class="messages" id="messages"><div class="message friday"><b>FRIDAY</b><p>Buongiorno. Sono pronta. Puoi scrivere un messaggio oppure usare il microfono, se il browser supporta il riconoscimento vocale.</p></div></div>
+        <form id="chatForm" class="composer"><input id="messageInput" autocomplete="off" placeholder="Scrivi un messaggio..." aria-label="Scrivi un messaggio"><button type="button" class="mic" id="micBtn" title="Dettatura vocale">🎙</button><button class="send" type="submit" aria-label="Invia">➤</button></form>
+        <div class="disclaimer">La chat in questa versione è locale: non è ancora collegata a un modello AI.</div>
+      </div>
+    </section>
+
+    <section class="view" id="control">
+      <div class="section-intro"><span class="eyebrow">PANORAMICA</span><h2>Control Center</h2><p>Il centro di controllo del tuo assistente personale.</p></div>
+      <div class="cards">
+        <article class="tile"><span class="tile-icon">◷</span><span class="eyebrow">ORGANIZZAZIONE</span><h3>Agenda</h3><p>Prepara qui la struttura per gli appuntamenti e le attività.</p><span class="tag">INTEGRAZIONE DA CONFIGURARE</span></article>
+        <article class="tile"><span class="tile-icon">✉</span><span class="eyebrow">COMUNICAZIONI</span><h3>Email</h3><p>Gmail e iCloud Mail non sono ancora collegati a questa app.</p><span class="tag">NON COLLEGATO</span></article>
+        <article class="tile"><span class="tile-icon">◈</span><span class="eyebrow">PERSONALIZZAZIONE</span><h3>Memoria</h3><p>Salva note e preferenze direttamente su questo dispositivo.</p><button class="text-btn" data-goto="memory">Apri memoria →</button></article>
+        <article class="tile"><span class="tile-icon">⌁</span><span class="eyebrow">PRODUTTIVITÀ</span><h3>Automazioni</h3><p>Le automazioni saranno aggiunte dopo aver definito le integrazioni gratuite disponibili.</p><span class="tag">IN PREPARAZIONE</span></article>
+      </div>
+    </section>
+
+    <section class="view" id="memory">
+      <div class="section-intro"><span class="eyebrow">ARCHIVIO PERSONALE</span><h2>Memoria</h2><p>Le note vengono salvate localmente nel browser di questo dispositivo.</p></div>
+      <div class="memory-box">
+        <form id="memoryForm"><label for="memoryInput">Nuova nota</label><div class="memory-entry"><input id="memoryInput" placeholder="Aggiungi un'informazione da ricordare..."><button class="primary">Salva nota</button></div></form>
+        <div id="memoryList" class="memory-list"></div>
+        <div class="memory-actions"><button class="secondary" id="exportMemory">Esporta memoria</button><label class="secondary import-label">Importa memoria<input type="file" id="importMemory" accept="application/json" hidden></label></div>
+      </div>
+      <p class="hint">La memoria locale non si sincronizza automaticamente tra iPhone e PC. Usa Esporta/Importa per trasferire le note senza servizi a pagamento.</p>
+    </section>
+
+    <section class="view" id="settings">
+      <div class="section-intro"><span class="eyebrow">CONFIGURAZIONE</span><h2>Impostazioni</h2><p>Preferenze di FRIDAY 1.0.</p></div>
+      <div class="settings-box">
+        <div class="setting-row"><div><b>Voce di risposta</b><p>Usa la sintesi vocale disponibile nel browser.</p></div><button class="secondary" id="testVoice">Prova voce</button></div>
+        <div class="setting-row"><div><b>Attivazione vocale</b><p>Dettatura tramite microfono premuto. Wake word in background non disponibile in modo affidabile su iPhone.</p></div><span class="tag">MANUALE</span></div>
+        <div class="setting-row"><div><b>Motore AI</b><p>Per ora FRIDAY è un'interfaccia companion. Puoi aprire ChatGPT senza usare API a pagamento.</p></div><button class="secondary" id="openChatGPT2">Apri ChatGPT ↗</button></div>
+        <div class="setting-row"><div><b>Privacy</b><p>Note e cronologia di questa demo restano nel browser; cancellando i dati del sito potresti perderle.</p></div><button class="danger" id="clearData">Cancella dati locali</button></div>
+      </div>
+    </section>
+    <footer>FRIDAY 1.0 <span>·</span> PROTOTIPO LOCALE <span>·</span> NESSUN SERVIZIO API A PAGAMENTO</footer>
+  </main>
+</div>
+<script src="app.js"></script>
+</body></html>

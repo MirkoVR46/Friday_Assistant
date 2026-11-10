@@ -1,0 +1,51 @@
+FRIDAY 1.1 — PACCHETTO PWA
+
+QUESTA VERSIONE È PRONTA PER ESSERE PUBBLICATA COME PWA.
+Per motivi di sicurezza, l'installazione completa su iPhone richiede un indirizzo HTTPS.
+Il pacchetto non contiene API AI, server a pagamento o abbonamenti aggiuntivi.
+
+A) INSTALLAZIONE SU WINDOWS (PROVA LOCALE)
+1. Estrai lo ZIP.
+2. Apri index.html in Chrome o Edge per provare l'interfaccia.
+3. Per l'installazione come app e per il service worker, pubblica prima i file su HTTPS.
+4. Dopo la pubblicazione, apri il sito in Edge/Chrome e scegli il comando Installa app dal menu del browser.
+
+B) PUBBLICAZIONE GRATUITA CON GITHUB PAGES
+Serve un account GitHub gratuito.
+1. Accedi a GitHub e crea un nuovo repository pubblico, ad esempio "friday-assistant".
+2. Estrai questo ZIP sul PC.
+3. Carica nel repository TUTTI i file e le cartelle contenuti nello ZIP (index.html deve trovarsi nella radice).
+4. Nel repository apri Settings > Pages.
+5. In "Build and deployment" seleziona "Deploy from a branch".
+6. Scegli il branch "main" e la cartella "/ (root)", poi salva.
+7. Attendi la pubblicazione: GitHub mostrerà l'indirizzo HTTPS del sito.
+
+C) INSTALLAZIONE SU IPHONE
+1. Apri in Safari l'indirizzo HTTPS pubblicato da GitHub Pages.
+2. Tocca Condividi.
+3. Seleziona "Aggiungi alla schermata Home".
+4. Conferma. FRIDAY comparirà come icona sulla schermata Home.
+
+D) INSTALLAZIONE SU WINDOWS DOPO LA PUBBLICAZIONE
+1. Apri lo stesso indirizzo HTTPS in Edge o Chrome.
+2. Apri il menu del browser.
+3. Seleziona "Installa FRIDAY" o "Installa questa pagina come app" (la dicitura può variare).
+
+COSA È GIÀ INCLUSO
+- Interfaccia responsive per PC e telefono.
+- Assistant Mode e Control Center.
+- Note locali con esportazione/importazione.
+- Dettatura e sintesi vocale quando supportate dal browser/dispositivo.
+- Icone app e manifest PWA.
+- Cache offline della struttura dell'app.
+
+LIMITI DA SAPERE
+- La chat non è ancora connessa a un modello AI. Il pulsante apre ChatGPT nel browser, senza API a pagamento.
+- Gmail, iCloud Mail e calendari non sono ancora integrati in FRIDAY.
+- Le note sono salvate nel browser/dispositivo e non si sincronizzano automaticamente tra iPhone e PC.
+- Il riconoscimento vocale dipende dal browser e dalla disponibilità del servizio vocale del dispositivo.
+- La parola di attivazione sempre in ascolto non è inclusa; in particolare iOS limita l'ascolto in background.
+- GitHub Pages è un servizio gratuito soggetto alle condizioni e ai limiti del provider; non richiede un abbonamento per un piccolo sito statico pubblico.
+
+PRIVACY
+Non inserire password, dati bancari o informazioni sensibili nelle note. I dati locali possono essere persi se cancelli i dati del browser. L'esportazione JSON permette di conservarne una copia.
