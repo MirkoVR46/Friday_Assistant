@@ -2,15 +2,64 @@ const $ = s => document.querySelector(s);
 
 const views = ['assistant', 'control', 'memory', 'settings'];
 
-const API_URL = 'https://friday-ai.75df7rfy97.workers.dev/';
+const API_URL = 'https://friday-ai.75df7rfy97.workers.dev';
 
 let conversation = [];
+let memories = [];
+
+const TOKEN_KEY = 'friday_access_token';
+
+function getToken() {
+    let token = sessionStorage.getItem(TOKEN_KEY);
+
+    if (!token) {
+        token = prompt('Inserisci la password di accesso a FRIDAY:');
+
+        if (!token) {
+            throw new Error('Accesso annullato.');
+        }
+
+        token = token.trim();
+        sessionStorage.setItem(TOKEN_KEY, token);
+    }
+
+    return token;
+}
+
+async function api(path, options = {}) {
+    const token = getToken();
+
+    const response = await fetch(API_URL + path, {
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token,
+            ...(options.headers || {})
+        }
+    });
+
+    const data = await response.json();
+
+    if (response.status === 401) {
+        sessionStorage.removeItem(TOKEN_KEY);
+    }
+
+    if (!response.ok) {
+        throw new Error(data.error || 'Errore di comunicazione.');
+    }
+
+    return data;
+}
 
 function showView(name) {
-    views.forEach(v => $('#' + v).classList.toggle('visible', v === name));
+    views.forEach(v =>
+        $('#' + v).classList.toggle('visible', v === name)
+    );
+
     document.querySelectorAll('.nav').forEach(b =>
         b.classList.toggle('active', b.dataset.view === name)
     );
+
     $('#pageTitle').textContent = ({
         assistant: 'Assistant Mode',
         control: 'Control Center',
@@ -34,6 +83,7 @@ $('#startChat').onclick = () => {
 
 function updateClock() {
     const d = new Date();
+
     $('#clock').textContent = d.toLocaleTimeString('it-IT', {
         hour: '2-digit',
         minute: '2-digit'
@@ -78,6 +128,30 @@ function addMessage(who, text) {
     $('#messages').scrollTop = $('#messages').scrollHeight;
 }
 
+async function loadConversation() {
+    try {
+        const data = await api('/chat');
+
+        $('#messages').innerHTML = '';
+
+        conversation = [];
+
+        (data.messages || []).forEach(item => {
+            const who = item.role === 'assistant' ? 'friday' : 'user';
+
+            addMessage(who, item.content);
+
+            conversation.push({
+                role: item.role,
+                content: item.content
+            });
+        });
+
+    } catch (error) {
+        console.error('Caricamento conversazione:', error);
+    }
+}
+
 async function sendMessage(message) {
     const input = $('#messageInput');
     const submitButton = $('#chatForm').querySelector('[type="submit"]');
@@ -88,25 +162,14 @@ async function sendMessage(message) {
     const loading = document.createElement('div');
     loading.className = 'message friday';
     loading.innerHTML = '<b>FRIDAY</b><p>Sto elaborando la tua richiesta...</p>';
+
     $('#messages').append(loading);
 
     try {
-        const response = await fetch(API_URL, {
+        const data = await api('/chat', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                message: message,
-                history: conversation
-            })
+            body: JSON.stringify({ message })
         });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || 'Errore nella comunicazione con il server.');
-        }
 
         if (!data.answer) {
             throw new Error('Il server non ha restituito una risposta valida.');
@@ -126,7 +189,7 @@ async function sendMessage(message) {
 
         addMessage(
             'friday',
-            'Non riesco a collegarmi al mio motore AI. ' +
+            'Non riesco a completare la richiesta. ' +
             error.message +
             ' Riprova tra qualche istante.'
         );
@@ -174,6 +237,7 @@ $('#micBtn').onclick = () => {
     }
 
     const r = new SpeechRecognition();
+
     r.lang = 'it-IT';
     r.interimResults = false;
 
@@ -187,39 +251,51 @@ $('#micBtn').onclick = () => {
     r.start();
 };
 
-const KEY = 'friday_memory_v1';
+// MEMORIA CONDIVISA
 
-function getNotes() {
+async function loadMemories() {
     try {
-        return JSON.parse(localStorage.getItem(KEY) || '[]');
-    } catch {
-        return [];
-    }
-}
+        const data = await api('/memory');
 
-function saveNotes(notes) {
-    localStorage.setItem(KEY, JSON.stringify(notes));
-    renderNotes();
+        memories = data.memories || [];
+
+        renderNotes();
+
+    } catch (error) {
+        console.error('Caricamento memoria:', error);
+        $('#memoryList').textContent = 'Impossibile caricare la memoria: ' + error.message;
+    }
 }
 
 function renderNotes() {
     const box = $('#memoryList');
+
     box.innerHTML = '';
 
-    getNotes().forEach((n, i) => {
+    memories.forEach(n => {
         const row = document.createElement('div');
         row.className = 'memory-item';
 
         const span = document.createElement('span');
-        span.textContent = n;
+        span.textContent = n.content;
 
         const del = document.createElement('button');
         del.textContent = 'Elimina';
 
-        del.onclick = () => {
-            const a = getNotes();
-            a.splice(i, 1);
-            saveNotes(a);
+        del.onclick = async () => {
+            if (!confirm('Vuoi eliminare questo ricordo?')) return;
+
+            try {
+                await api('/memory', {
+                    method: 'DELETE',
+                    body: JSON.stringify({ id: n.id })
+                });
+
+                await loadMemories();
+
+            } catch (error) {
+                alert('Errore: ' + error.message);
+            }
         };
 
         row.append(span, del);
@@ -231,26 +307,39 @@ function renderNotes() {
     }
 }
 
-$('#memoryForm').addEventListener('submit', e => {
+$('#memoryForm').addEventListener('submit', async e => {
     e.preventDefault();
 
     const val = $('#memoryInput').value.trim();
+
     if (!val) return;
 
-    const a = getNotes();
-    a.unshift(val);
+    try {
+        await api('/memory', {
+            method: 'POST',
+            body: JSON.stringify({
+                category: 'generale',
+                content: val
+            })
+        });
 
-    saveNotes(a);
-    $('#memoryInput').value = '';
+        $('#memoryInput').value = '';
+
+        await loadMemories();
+
+    } catch (error) {
+        alert('Impossibile salvare il ricordo: ' + error.message);
+    }
 });
 
 $('#exportMemory').onclick = () => {
     const blob = new Blob(
-        [JSON.stringify(getNotes(), null, 2)],
+        [JSON.stringify(memories, null, 2)],
         { type: 'application/json' }
     );
 
     const a = document.createElement('a');
+
     a.href = URL.createObjectURL(blob);
     a.download = 'friday-memoria.json';
     a.click();
@@ -260,33 +349,53 @@ $('#exportMemory').onclick = () => {
 
 $('#importMemory').onchange = async e => {
     const f = e.target.files[0];
+
     if (!f) return;
 
     try {
         const data = JSON.parse(await f.text());
 
-        if (!Array.isArray(data) || !data.every(x => typeof x === 'string')) {
-            throw Error();
+        if (!Array.isArray(data)) {
+            throw Error('Formato non valido');
         }
 
-        saveNotes(data.concat(getNotes()));
-        alert('Memoria importata.');
+        for (const item of data) {
+            const content = typeof item === 'string'
+                ? item
+                : item.content;
 
-    } catch {
-        alert('File non valido.');
+            if (typeof content !== 'string' || !content.trim()) {
+                continue;
+            }
+
+            await api('/memory', {
+                method: 'POST',
+                body: JSON.stringify({
+                    category: 'importata',
+                    content: content.trim()
+                })
+            });
+        }
+
+        await loadMemories();
+
+        alert('Memoria importata correttamente.');
+
+    } catch (error) {
+        alert('Errore durante l’importazione: ' + error.message);
     }
 
     e.target.value = '';
 };
 
-$('#clearData').onclick = () => {
-    if (confirm('Vuoi cancellare tutte le note locali di FRIDAY su questo browser?')) {
-        localStorage.removeItem(KEY);
-        renderNotes();
-    }
+$('#clearData').onclick = async () => {
+    alert('Per sicurezza, la cancellazione completa della memoria condivisa non è disponibile da questo pulsante.');
 };
 
-renderNotes();
+// AVVIO
+
+loadConversation();
+loadMemories();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
