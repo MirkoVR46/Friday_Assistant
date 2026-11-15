@@ -1,3 +1,4 @@
+
 const $ = s => document.querySelector(s);
 
 const views = ['assistant', 'control', 'memory', 'settings'];
@@ -54,7 +55,13 @@ async function api(path, options = {}) {
         }
     });
 
-    const data = await response.json();
+    let data;
+
+    try {
+        data = await response.json();
+    } catch {
+        data = {};
+    }
 
     if (response.status === 401) {
         sessionStorage.removeItem(TOKEN_KEY);
@@ -65,6 +72,50 @@ async function api(path, options = {}) {
     }
 
     return data;
+}
+
+// CONFERMA OPERAZIONI MEMORIA
+
+async function confirmPendingMemoryAction(data, description) {
+    if (!data || !data.pending || !data.pending_id) {
+        throw new Error(
+            'Il server non ha restituito una richiesta di conferma valida.'
+        );
+    }
+
+    const confirmed = confirm(
+        description +
+        '\n\nLa richiesta scadrà tra 5 minuti.' +
+        '\n\nVuoi confermare l’operazione?'
+    );
+
+    try {
+        const result = await api('/memory', {
+            method: 'POST',
+            body: JSON.stringify({
+                action: confirmed ? 'confirm' : 'cancel',
+                pending_id: data.pending_id
+            })
+        });
+
+        if (!confirmed) {
+            return {
+                cancelled: true,
+                result
+            };
+        }
+
+        return {
+            confirmed: true,
+            result
+        };
+
+    } catch (error) {
+        throw new Error(
+            'Non è stato possibile completare la conferma: ' +
+            error.message
+        );
+    }
 }
 
 // NAVIGAZIONE
@@ -212,7 +263,6 @@ async function sendMessage(message) {
             { role: 'assistant', content: data.answer }
         );
 
-        // AGGIORNA LA MEMORIA DOPO OGNI RISPOSTA
         await loadMemories();
 
     } catch (error) {
@@ -259,11 +309,11 @@ $('#openChatGPT2').onclick = openGPT;
 
 // MICROFONO
 
-$('#testVoice').onclick = () =>
-    speak('Ciao, sono FRIDAY. Sistema vocale pronto.');
-
 const SpeechRecognition =
     window.SpeechRecognition || window.webkitSpeechRecognition;
+
+$('#testVoice').onclick = () =>
+    speak('Ciao, sono FRIDAY. Sistema vocale pronto.');
 
 $('#micBtn').onclick = () => {
     if (!SpeechRecognition) {
@@ -328,18 +378,50 @@ function renderNotes() {
         del.textContent = 'Elimina';
 
         del.onclick = async () => {
-            if (!confirm('Vuoi eliminare questo ricordo?')) return;
+            del.disabled = true;
 
             try {
-                await api('/memory', {
+                // Prima prepara la richiesta di eliminazione.
+                const pending = await api('/memory', {
                     method: 'DELETE',
                     body: JSON.stringify({ id: n.id })
                 });
 
+                if (!pending.pending) {
+                    throw new Error(
+                        'Il server non ha preparato la richiesta di eliminazione.'
+                    );
+                }
+
+                const confirmation = await confirmPendingMemoryAction(
+                    pending,
+                    'FRIDAY vuole eliminare questo ricordo:\n\n' +
+                    'ID: ' + n.id +
+                    '\nCategoria: ' + getCategoryName(n.category) +
+                    '\n\n' + n.content
+                );
+
+                if (confirmation.cancelled) {
+                    alert('Eliminazione annullata. Il ricordo è rimasto invariato.');
+                    return;
+                }
+
+                if (!confirmation.result.deleted) {
+                    throw new Error(
+                        'Il server non ha confermato l’eliminazione.'
+                    );
+                }
+
+                alert('Ricordo ID ' + n.id + ' eliminato correttamente.');
+
                 await loadMemories();
 
             } catch (error) {
-                alert('Errore: ' + error.message);
+                alert('Eliminazione non completata: ' + error.message);
+                await loadMemories();
+
+            } finally {
+                del.disabled = false;
             }
         };
 
@@ -353,6 +435,71 @@ function renderNotes() {
     }
 }
 
+// SALVATAGGIO MANUALE CON CONFERMA
+
+async function saveManualMemory(category, content) {
+    const pending = await api('/memory', {
+        method: 'POST',
+        body: JSON.stringify({
+            category,
+            content
+        })
+    });
+
+    if (pending.duplicate) {
+        return {
+            duplicate: true,
+            id: pending.id
+        };
+    }
+
+    if (!pending.pending) {
+        throw new Error(
+            'Il server non ha preparato la richiesta di salvataggio.'
+        );
+    }
+
+    const similarText = (pending.similar || [])
+        .map(item => 'ID ' + item.id + ': ' + item.content)
+        .join('\n\n');
+
+    let description =
+        'FRIDAY vuole salvare questo nuovo ricordo:\n\n' +
+        'Categoria: ' + getCategoryName(category) +
+        '\n\n' + content;
+
+    if (similarText) {
+        description +=
+            '\n\nRicordi simili già presenti:\n\n' + similarText;
+    }
+
+    const confirmation = await confirmPendingMemoryAction(
+        pending,
+        description
+    );
+
+    if (confirmation.cancelled) {
+        return {
+            cancelled: true
+        };
+    }
+
+    if (confirmation.result.duplicate) {
+        return {
+            duplicate: true,
+            id: confirmation.result.id
+        };
+    }
+
+    if (!confirmation.result.saved) {
+        throw new Error('Il server non ha confermato il salvataggio.');
+    }
+
+    return {
+        saved: true
+    };
+}
+
 // AGGIUNTA MANUALE
 
 $('#memoryForm').addEventListener('submit', async e => {
@@ -362,21 +509,32 @@ $('#memoryForm').addEventListener('submit', async e => {
 
     if (!val) return;
 
-    try {
-        await api('/memory', {
-            method: 'POST',
-            body: JSON.stringify({
-                category: 'generale',
-                content: val
-            })
-        });
+    const submitButton = $('#memoryForm').querySelector('[type="submit"]');
 
-        $('#memoryInput').value = '';
+    if (submitButton) submitButton.disabled = true;
+
+    try {
+        const result = await saveManualMemory('generale', val);
+
+        if (result.saved) {
+            $('#memoryInput').value = '';
+            alert('Ricordo salvato correttamente.');
+
+        } else if (result.duplicate) {
+            $('#memoryInput').value = '';
+            alert('Questo ricordo è già presente nell’archivio.');
+
+        } else if (result.cancelled) {
+            alert('Salvataggio annullato. Nessun ricordo è stato aggiunto.');
+        }
 
         await loadMemories();
 
     } catch (error) {
-        alert('Impossibile salvare il ricordo: ' + error.message);
+        alert('Impossibile completare il salvataggio: ' + error.message);
+
+    } finally {
+        if (submitButton) submitButton.disabled = false;
     }
 });
 
@@ -397,7 +555,7 @@ $('#exportMemory').onclick = () => {
     URL.revokeObjectURL(a.href);
 };
 
-// IMPORTAZIONE
+// IMPORTAZIONE CON CONFERMA SINGOLA
 
 $('#importMemory').onchange = async e => {
     const f = e.target.files[0];
@@ -410,6 +568,11 @@ $('#importMemory').onchange = async e => {
         if (!Array.isArray(data)) {
             throw Error('Formato non valido');
         }
+
+        let saved = 0;
+        let duplicates = 0;
+        let cancelled = 0;
+        let errors = 0;
 
         for (const item of data) {
             const content = typeof item === 'string'
@@ -424,18 +587,35 @@ $('#importMemory').onchange = async e => {
                 ? item.category
                 : 'importata';
 
-            await api('/memory', {
-                method: 'POST',
-                body: JSON.stringify({
+            try {
+                const result = await saveManualMemory(
                     category,
-                    content: content.trim()
-                })
-            });
+                    content.trim()
+                );
+
+                if (result.saved) {
+                    saved++;
+                } else if (result.duplicate) {
+                    duplicates++;
+                } else if (result.cancelled) {
+                    cancelled++;
+                }
+
+            } catch (error) {
+                errors++;
+                console.error('Errore importazione ricordo:', error);
+            }
         }
 
         await loadMemories();
 
-        alert('Memoria importata correttamente.');
+        alert(
+            'Importazione terminata.\n\n' +
+            'Ricordi salvati: ' + saved +
+            '\nDuplicati: ' + duplicates +
+            '\nAnnullati: ' + cancelled +
+            '\nErrori: ' + errors
+        );
 
     } catch (error) {
         alert('Errore durante l’importazione: ' + error.message);
