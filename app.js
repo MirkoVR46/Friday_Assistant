@@ -9,6 +9,22 @@ let memories = [];
 
 const TOKEN_KEY = 'friday_access_token';
 
+const categoryNames = {
+    preferenze: '⭐ PREFERENZE',
+    interessi: '❤️ INTERESSI',
+    abitudini: '🔄 ABITUDINI',
+    obiettivi: '🎯 OBIETTIVI',
+    veicoli: '🏍️ VEICOLI',
+    personale: '📌 PERSONALE',
+    generale: '🗂️ GENERALE',
+    importata: '📥 IMPORTATA'
+};
+
+function getCategoryName(category) {
+    const key = String(category || 'generale').toLowerCase();
+    return categoryNames[key] || '🗂️ ' + key.toUpperCase();
+}
+
 function getToken() {
     let token = sessionStorage.getItem(TOKEN_KEY);
 
@@ -51,6 +67,8 @@ async function api(path, options = {}) {
     return data;
 }
 
+// NAVIGAZIONE
+
 function showView(name) {
     views.forEach(v =>
         $('#' + v).classList.toggle('visible', v === name)
@@ -66,6 +84,10 @@ function showView(name) {
         memory: 'Memoria',
         settings: 'Impostazioni'
     })[name];
+
+    if (name === 'memory') {
+        loadMemories();
+    }
 }
 
 document.querySelectorAll('.nav').forEach(b =>
@@ -81,6 +103,8 @@ $('#startChat').onclick = () => {
     $('#messageInput').focus();
 };
 
+// OROLOGIO
+
 function updateClock() {
     const d = new Date();
 
@@ -92,6 +116,8 @@ function updateClock() {
 
 updateClock();
 setInterval(updateClock, 15000);
+
+// VOCE
 
 function speak(text) {
     if (!('speechSynthesis' in window)) {
@@ -113,6 +139,8 @@ function speak(text) {
     speechSynthesis.speak(u);
 }
 
+// CHAT
+
 function addMessage(who, text) {
     const el = document.createElement('div');
     el.className = 'message ' + who;
@@ -124,6 +152,7 @@ function addMessage(who, text) {
     p.textContent = text;
 
     el.append(b, p);
+
     $('#messages').append(el);
     $('#messages').scrollTop = $('#messages').scrollHeight;
 }
@@ -133,7 +162,6 @@ async function loadConversation() {
         const data = await api('/chat');
 
         $('#messages').innerHTML = '';
-
         conversation = [];
 
         (data.messages || []).forEach(item => {
@@ -184,6 +212,9 @@ async function sendMessage(message) {
             { role: 'assistant', content: data.answer }
         );
 
+        // AGGIORNA LA MEMORIA DOPO OGNI RISPOSTA
+        await loadMemories();
+
     } catch (error) {
         loading.remove();
 
@@ -217,12 +248,16 @@ $('#chatForm').addEventListener('submit', async e => {
     await sendMessage(val);
 });
 
+// CHATGPT
+
 function openGPT() {
     window.open('https://chatgpt.com/', '_blank', 'noopener');
 }
 
 $('#openChatGPT').onclick = openGPT;
 $('#openChatGPT2').onclick = openGPT;
+
+// MICROFONO
 
 $('#testVoice').onclick = () =>
     speak('Ciao, sono FRIDAY. Sistema vocale pronto.');
@@ -263,7 +298,9 @@ async function loadMemories() {
 
     } catch (error) {
         console.error('Caricamento memoria:', error);
-        $('#memoryList').textContent = 'Impossibile caricare la memoria: ' + error.message;
+
+        $('#memoryList').textContent =
+            'Impossibile caricare la memoria: ' + error.message;
     }
 }
 
@@ -276,7 +313,15 @@ function renderNotes() {
         const row = document.createElement('div');
         row.className = 'memory-item';
 
+        const contentBox = document.createElement('div');
+        contentBox.className = 'memory-content';
+
+        const category = document.createElement('strong');
+        category.className = 'memory-category';
+        category.textContent = getCategoryName(n.category);
+
         const span = document.createElement('span');
+        span.className = 'memory-text';
         span.textContent = n.content;
 
         const del = document.createElement('button');
@@ -298,14 +343,17 @@ function renderNotes() {
             }
         };
 
-        row.append(span, del);
+        contentBox.append(category, span);
+        row.append(contentBox, del);
         box.append(row);
     });
 
     if (!box.children.length) {
-        box.textContent = 'Nessuna nota salvata.';
+        box.textContent = 'Nessun ricordo salvato.';
     }
 }
+
+// AGGIUNTA MANUALE
 
 $('#memoryForm').addEventListener('submit', async e => {
     e.preventDefault();
@@ -332,6 +380,8 @@ $('#memoryForm').addEventListener('submit', async e => {
     }
 });
 
+// ESPORTAZIONE
+
 $('#exportMemory').onclick = () => {
     const blob = new Blob(
         [JSON.stringify(memories, null, 2)],
@@ -346,6 +396,8 @@ $('#exportMemory').onclick = () => {
 
     URL.revokeObjectURL(a.href);
 };
+
+// IMPORTAZIONE
 
 $('#importMemory').onchange = async e => {
     const f = e.target.files[0];
@@ -368,10 +420,14 @@ $('#importMemory').onchange = async e => {
                 continue;
             }
 
+            const category = typeof item === 'object' && item.category
+                ? item.category
+                : 'importata';
+
             await api('/memory', {
                 method: 'POST',
                 body: JSON.stringify({
-                    category: 'importata',
+                    category,
                     content: content.trim()
                 })
             });
@@ -388,8 +444,13 @@ $('#importMemory').onchange = async e => {
     e.target.value = '';
 };
 
+// GESTIONE DATI
+
 $('#clearData').onclick = async () => {
-    alert('Per sicurezza, la cancellazione completa della memoria condivisa non è disponibile da questo pulsante.');
+    alert(
+        'La memoria condivisa è archiviata su Cloudflare D1. ' +
+        'Per evitare cancellazioni accidentali, utilizza il pulsante Elimina sui singoli ricordi.'
+    );
 };
 
 // AVVIO
