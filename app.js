@@ -203,22 +203,97 @@ function addMessage(who, text) {
     p.textContent = text;
 
     el.append(b, p);
+    $('#messages').append(el);
+    $('#messages').scrollTop = $('#messages').scrollHeight;
+}
+
+// VISUALIZZAZIONE CRONOLOGIA CON COMANDI
+
+function addHistoryMessage(item, allMessages, index) {
+    const who = item.role === 'assistant' ? 'friday' : 'user';
+
+    const el = document.createElement('div');
+    el.className = 'message ' + who;
+    el.dataset.messageId = item.id;
+
+    const b = document.createElement('b');
+    b.textContent = who === 'user' ? 'TU' : 'FRIDAY';
+
+    const p = document.createElement('p');
+    p.textContent = item.content;
+
+    const actions = document.createElement('div');
+    actions.className = 'message-actions';
+
+    // ELIMINAZIONE SINGOLO MESSAGGIO
+
+    const singleButton = document.createElement('button');
+    singleButton.type = 'button';
+    singleButton.textContent = 'Elimina messaggio';
+    singleButton.onclick = () => deleteChatMessage(item, null);
+
+    actions.append(singleButton);
+
+    // INDIVIDUAZIONE DEL MESSAGGIO ABBINATO
+
+    let pairedMessage = null;
+
+    if (item.role === 'user') {
+        const next = allMessages[index + 1];
+
+        if (next?.role === 'assistant') {
+            pairedMessage = next;
+        }
+
+    } else if (item.role === 'assistant') {
+        const previous = allMessages[index - 1];
+
+        if (previous?.role === 'user') {
+            pairedMessage = previous;
+        }
+    }
+
+    // ELIMINAZIONE INTERO SCAMBIO
+
+    if (pairedMessage) {
+        const exchangeButton = document.createElement('button');
+        exchangeButton.type = 'button';
+        exchangeButton.textContent = 'Elimina conversazione';
+        exchangeButton.className = 'delete-exchange';
+
+        exchangeButton.onclick = () => {
+            const userMessage = item.role === 'user'
+                ? item
+                : pairedMessage;
+
+            const assistantMessage = item.role === 'assistant'
+                ? item
+                : pairedMessage;
+
+            deleteChatMessage(userMessage, assistantMessage);
+        };
+
+        actions.append(exchangeButton);
+    }
+
+    el.append(b, p, actions);
 
     $('#messages').append(el);
     $('#messages').scrollTop = $('#messages').scrollHeight;
 }
 
+// CARICAMENTO CRONOLOGIA
+
 async function loadConversation() {
     try {
         const data = await api('/chat');
+        const messages = data.messages || [];
 
         $('#messages').innerHTML = '';
         conversation = [];
 
-        (data.messages || []).forEach(item => {
-            const who = item.role === 'assistant' ? 'friday' : 'user';
-
-            addMessage(who, item.content);
+        messages.forEach((item, index) => {
+            addHistoryMessage(item, messages, index);
 
             conversation.push({
                 role: item.role,
@@ -230,6 +305,52 @@ async function loadConversation() {
         console.error('Caricamento conversazione:', error);
     }
 }
+
+// ELIMINAZIONE CONFERMATA DALL'UTENTE
+
+async function deleteChatMessage(userMessage, assistantMessage) {
+    const isExchange = Boolean(assistantMessage);
+
+    const preview = isExchange
+        ? 'MESSAGGIO TU:\n' + userMessage.content +
+          '\n\nRISPOSTA FRIDAY:\n' + assistantMessage.content
+        : 'MESSAGGIO:\n' + userMessage.content;
+
+    const question = isExchange
+        ? 'Vuoi eliminare definitivamente questo intero scambio?'
+        : 'Vuoi eliminare definitivamente questo singolo messaggio?';
+
+    if (!confirm(
+        question + '\n\n' + preview +
+        '\n\nQuesta operazione non è reversibile.'
+    )) {
+        return;
+    }
+
+    try {
+        await api('/chat', {
+            method: 'DELETE',
+            body: JSON.stringify({
+                message_id: userMessage.id,
+                paired_message_id: assistantMessage
+                    ? assistantMessage.id
+                    : null,
+                message_content: userMessage.content,
+                paired_message_content: assistantMessage
+                    ? assistantMessage.content
+                    : null,
+                scope: isExchange ? 'exchange' : 'single'
+            })
+        });
+
+        await loadConversation();
+
+    } catch (error) {
+        alert('Impossibile eliminare il messaggio: ' + error.message);
+    }
+}
+
+// INVIO MESSAGGI
 
 async function sendMessage(message) {
     const input = $('#messageInput');
@@ -256,13 +377,7 @@ async function sendMessage(message) {
 
         loading.remove();
 
-        addMessage('friday', data.answer);
-
-        conversation.push(
-            { role: 'user', content: message },
-            { role: 'assistant', content: data.answer }
-        );
-
+        await loadConversation();
         await loadMemories();
 
     } catch (error) {
